@@ -377,19 +377,21 @@ const Logo: React.FC<LogoProps> = ({ variant, className = '', size = 'md' }) => 
       <div className={`bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-white/10 relative z-10 shadow-sm`}>
          <IconComponent className={`${iconSizes[size]} ${active.iconColor} animate-pulse`} />
       </div>
-      <div className="flex flex-col">
-          <div className={`${sizeClasses[size]} ${active.font} leading-none whitespace-nowrap`}>
-            info<span className={active.geniusColor}>GENIUS</span>{' '}
-            <span 
-              className="text-transparent bg-clip-text" 
+      <div className="flex flex-col justify-center">
+          <div className={`${sizeClasses[size]} ${active.font} leading-tight whitespace-nowrap text-slate-900 dark:text-white`}>
+            info<span 
+              className="text-transparent bg-clip-text inline-block" 
               style={{ backgroundImage: active.visionGradient }}
             >
-              Vision
+              VISION
             </span>
           </div>
-          <span className="text-[8px] md:text-[10px] uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 font-medium mt-1">
-            {active.subtitle}
-          </span>
+          <div className="flex items-center gap-2 mt-1">
+            <div className="h-[1px] w-4 bg-gradient-to-r from-slate-500/50 to-transparent"></div>
+            <span className="text-[8px] md:text-[10px] uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400 font-bold">
+              {active.subtitle}
+            </span>
+          </div>
       </div>
     </div>
   );

@@ -15,11 +15,15 @@ import Loading from './components/Loading';
 import IntroScreen from './components/IntroScreen';
 import SearchResults from './components/SearchResults';
 import Logo, { LogoVariant } from './components/Logo';
+import Dashboard from './components/Dashboard';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, AlertCircle, History, GraduationCap, Palette, Microscope, Atom, Compass, Globe, Sun, Moon, Key, CreditCard, ExternalLink, DollarSign, Palette as PaletteIcon, X, Maximize, Square, Smartphone, Trash2 } from 'lucide-react';
+import { Search, AlertCircle, History, GraduationCap, Palette, Microscope, Atom, Compass, Globe, Sun, Moon, Key, CreditCard, ExternalLink, DollarSign, Palette as PaletteIcon, X, Maximize, Square, Smartphone, Trash2, LogIn, LogOut, LayoutDashboard, ShieldCheck, Share2 } from 'lucide-react';
+import { auth, db, loginWithGoogle, logout, saveInfographic, getUserInfographics, getAllInfographics } from './services/firebase';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 
 const App: React.FC = () => {
-  const [showIntro, setShowIntro] = useState(true);
+  const [showIntro, setShowIntro] = useState(false);
   const [logoVariant, setLogoVariant] = useState<LogoVariant>('synapse');
   const [showBrandPlayground, setShowBrandPlayground] = useState(false);
   const [topic, setTopic] = useState('');
@@ -41,6 +45,75 @@ const App: React.FC = () => {
   const [pendingSession, setPendingSession] = useState<any>(null);
   const [showRestorePrompt, setShowRestorePrompt] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [dbHistory, setDbHistory] = useState<any[]>([]);
+  const [adminHistory, setAdminHistory] = useState<any[]>([]);
+
+  // Auth State Listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+      if (user) {
+        try {
+          // Fetch user data to check for admin status
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            setIsAdmin(userDoc.data().isAdmin === true);
+          }
+        } catch (e) {
+          console.error("Failed to fetch user data", e);
+        }
+      } else {
+        setIsAdmin(false);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch DB History
+  useEffect(() => {
+    if (!currentUser) return;
+    return getUserInfographics(currentUser.uid, (data) => {
+      setDbHistory(data);
+    });
+  }, [currentUser]);
+
+  // Fetch Admin History
+  useEffect(() => {
+    if (!isAdmin) return;
+    return getAllInfographics((data) => {
+      setAdminHistory(data);
+    });
+  }, [isAdmin]);
+
+  // Handle Shared Links
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sharedId = params.get('v');
+    if (sharedId) {
+      const fetchShared = async () => {
+        try {
+          const docRef = doc(db, 'infographics', sharedId);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            const normalized = {
+              ...data,
+              id: docSnap.id,
+              data: data.imageUrl || data.data
+            };
+            setImageHistory([normalized as GeneratedImage]);
+            setShowIntro(false);
+          }
+        } catch (e) {
+          console.error("Failed to fetch shared infographic", e);
+        }
+      };
+      fetchShared();
+    }
+  }, []);
 
   // API Key State
   const [hasApiKey, setHasApiKey] = useState(false);
@@ -56,7 +129,7 @@ const App: React.FC = () => {
 
   // Check for saved session
   useEffect(() => {
-    const saved = localStorage.getItem('infogenius_session');
+    const saved = localStorage.getItem('infovision_session');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -78,7 +151,7 @@ const App: React.FC = () => {
         timestamp: Date.now()
       };
       try {
-        localStorage.setItem('infogenius_session', JSON.stringify(sessionData));
+        localStorage.setItem('infovision_session', JSON.stringify(sessionData));
       } catch (e) {
         console.warn("Storage full, could not auto-save full session", e);
       }
@@ -166,6 +239,10 @@ const App: React.FC = () => {
       };
 
       setImageHistory([newImage, ...imageHistory]);
+      
+      if (auth.currentUser) {
+        saveInfographic(newImage).catch(err => console.error("Auto-save failed", err));
+      }
     } catch (err: any) {
       console.error(err);
       // Check for specific billing/key errors
@@ -208,6 +285,10 @@ const App: React.FC = () => {
         hotspots: hotspots
       };
       setImageHistory([newImage, ...imageHistory]);
+
+      if (auth.currentUser) {
+        saveInfographic(newImage).catch(err => console.error("Auto-save failed", err));
+      }
     } catch (err: any) {
       console.error(err);
       if (err.message && (err.message.includes("Requested entity was not found") || err.message.includes("404") || err.message.includes("403"))) {
@@ -358,6 +439,23 @@ const App: React.FC = () => {
     {/* Block usage if key is missing */}
     {!checkingKey && !hasApiKey && <KeySelectionModal />}
     {showRestorePrompt && <RestoreSessionModal />}
+    {showDashboard && (
+      <Dashboard 
+        items={isAdmin ? adminHistory : dbHistory} 
+        isAdmin={isAdmin}
+        onRestore={(img) => {
+          // Normalize data from DB vs Session
+          const normalized = {
+            ...img,
+            id: img.id,
+            data: img.imageUrl || img.data, // Map from DB 'imageUrl' or local 'data'
+          };
+          handleRestoreImage(normalized);
+          setShowDashboard(false);
+        }}
+        onClose={() => setShowDashboard(false)}
+      />
+    )}
 
     {showIntro ? (
       <IntroScreen 
@@ -390,7 +488,7 @@ const App: React.FC = () => {
 
               <div className="mb-8">
                 <h2 className="text-3xl font-display font-bold text-slate-900 dark:text-white mb-2">Logo Variations</h2>
-                <p className="text-slate-500 text-sm">Select a brand personality for infoGENIUS Vision</p>
+                <p className="text-slate-500 text-sm">Select a brand personality for infoVISION</p>
               </div>
 
               <div className="grid gap-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
@@ -425,6 +523,43 @@ const App: React.FC = () => {
           <Logo variant={logoVariant} className="cursor-pointer" />
 
           <div className="flex items-center gap-2">
+              {currentUser ? (
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setShowDashboard(true)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition-all border border-cyan-500/50 shadow-lg shadow-cyan-500/20"
+                  >
+                    {isAdmin ? <ShieldCheck className="w-3.5 h-3.5" /> : <LayoutDashboard className="w-3.5 h-3.5" />}
+                    <span className="hidden sm:inline">{isAdmin ? 'Admin' : 'Dashboard'}</span>
+                  </button>
+
+                  <div className="h-8 w-px bg-slate-200 dark:bg-white/10 mx-1"></div>
+
+                  <button 
+                    onClick={logout}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-600 dark:text-slate-400 text-xs font-medium transition-colors border border-slate-200 dark:border-white/10"
+                    title="Logout"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span className="hidden lg:inline">Sign Out</span>
+                  </button>
+
+                  {currentUser.photoURL && (
+                    <img src={currentUser.photoURL} alt="" className="w-8 h-8 rounded-full border border-slate-200 dark:border-white/10 shadow-sm" />
+                  )}
+                </div>
+              ) : (
+                <button 
+                  onClick={loginWithGoogle}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold transition-all shadow-lg hover:scale-105 active:scale-95"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Sign In</span>
+                </button>
+              )}
+
+              <div className="h-8 w-px bg-slate-200 dark:bg-white/10 mx-2 hidden md:block"></div>
+
               <button 
                 onClick={() => setShowHistory(true)}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-slate-600 dark:text-slate-400 text-xs font-medium transition-colors border border-slate-200 dark:border-white/10"
@@ -536,7 +671,7 @@ const App: React.FC = () => {
 
               <div className="p-6 border-t border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900/50">
                 <button 
-                  onClick={() => { if(confirm("Clear history?")) { setImageHistory([]); localStorage.removeItem('infogenius_session'); setShowHistory(false); } }}
+                  onClick={() => { if(confirm("Clear history?")) { setImageHistory([]); localStorage.removeItem('infovision_session'); setShowHistory(false); } }}
                   className="w-full py-3 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -557,9 +692,9 @@ const App: React.FC = () => {
               <div className="inline-flex items-center justify-center gap-2 px-4 py-1.5 rounded-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-amber-600 dark:text-amber-300 text-[10px] md:text-xs font-bold tracking-widest uppercase shadow-sm dark:shadow-[0_0_20px_rgba(251,191,36,0.1)] backdrop-blur-sm">
                 <Compass className="w-3 h-3 md:w-4 md:h-4" /> Explore vast subjects like history, science, and more.
               </div>
-              <h1 className="text-3xl sm:text-5xl md:text-8xl font-display font-bold text-slate-900 dark:text-white tracking-tight leading-[0.95] md:leading-[0.9]">
+              <h1 className="text-2xl sm:text-4xl md:text-7xl font-display font-bold text-slate-900 dark:text-white tracking-tight leading-[0.95] md:leading-[0.9]">
                 Visualize <br/>
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-600 via-indigo-600 to-purple-600 dark:from-cyan-400 dark:via-indigo-400 dark:to-purple-400">The Unknown.</span>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-600 via-indigo-600 to-purple-600 dark:from-cyan-400 dark:via-indigo-400 dark:to-purple-400 drop-shadow-[0_0_2px_#ec4899] md:drop-shadow-[0_0_5px_rgba(236,72,153,0.4)]">The Unknown.</span>
               </h1>
               <p className="text-sm md:text-2xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto font-light leading-relaxed px-4">
                 Generate diagrams and infographics powered by A.I. & WWW
@@ -766,6 +901,19 @@ const App: React.FC = () => {
                     onEdit={handleEdit} 
                     onUpdateImage={handleUpdateImage}
                     onRegenerate={handleRegenerate}
+                    onSaveToCloud={async () => {
+                      if (!currentUser) {
+                        if (confirm("You need to be signed in to share to cloud. Sign in now?")) {
+                          await loginWithGoogle();
+                        } else {
+                          return undefined;
+                        }
+                      }
+                      if (auth.currentUser) {
+                        return await saveInfographic(imageHistory[0]);
+                      }
+                      return undefined;
+                    }}
                     isEditing={isLoading}
                 />
                 <SearchResults results={currentSearchResults} />

@@ -233,7 +233,7 @@ export const generateInteractiveHotspots = async (
     For each, provide:
     1. A unique ID (short string)
     2. A title (short, 2-4 words)
-    3. A detailed description or "fun fact" (1-2 sentences)
+    3. A comprehensive elaboration (EXACTLY 2 PARAGRAPHS) explaining the significance, history, or scientific context of this element.
     4. A highly relevant external URL for further reading (from a reputable source like Wikipedia, Britannica, or a scientific journal).
     5. Precise X and Y coordinates (0-100) representing the center of that element in the image.
     

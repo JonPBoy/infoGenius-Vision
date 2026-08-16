@@ -32,7 +32,8 @@ import {
   RotateCcw,
   ExternalLink,
   ChevronRight,
-  Maximize
+  Maximize,
+  Cloud
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
@@ -45,10 +46,11 @@ interface InfographicProps {
   onEdit: (prompt: string, selection?: { x: number, y: number, w: number, h: number }) => void;
   onUpdateImage: (updates: Partial<GeneratedImage>) => void;
   onRegenerate: () => void;
+  onSaveToCloud?: () => Promise<string | undefined>;
   isEditing: boolean;
 }
 
-const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage, onRegenerate, isEditing }) => {
+const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage, onRegenerate, onSaveToCloud, isEditing }) => {
   const [editPrompt, setEditPrompt] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isShareMenuOpen, setIsShareMenuOpen] = useState(false);
@@ -240,6 +242,24 @@ const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage,
       setSelectedAnnotation(null);
     }
   };
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [historyIndex, annotationHistory]);
 
   const handleZoomIn = () => setZoomLevel(prev => Math.min(prev + 0.5, 4));
   const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - 0.5, 0.5));
@@ -569,10 +589,10 @@ const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage,
                     initial={{ opacity: 0, y: 10, x: '-50%' }}
                     animate={{ opacity: 1, y: 0, x: '-50%' }}
                     exit={{ opacity: 0, y: 10, x: '-50%' }}
-                    className="absolute bottom-full left-1/2 mb-3 w-48 sm:w-64 p-3 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 z-50 pointer-events-auto"
+                    className="absolute bottom-full left-1/2 mb-3 w-64 sm:w-80 p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 z-50 pointer-events-auto"
                   >
-                    <h4 className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm mb-1">{hotspot.title}</h4>
-                    <p className="text-[10px] sm:text-xs text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-2">{hotspot.description}</p>
+                    <h4 className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm mb-2">{hotspot.title}</h4>
+                    <p className="text-[10px] sm:text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">{hotspot.description}</p>
                     <div className="mt-2 pt-2 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
                         <button 
                             onClick={(e) => {
@@ -655,7 +675,7 @@ const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage,
                           </div>
                           <div className="text-left">
                             <p className="text-sm font-bold leading-tight">Document PDF</p>
-                            <p className="text-[10px] opacity-60">Full annotation export</p>
+                            <p className="text-[10px] opacity-60">Full Annotation Export</p>
                           </div>
                         </button>
                       </div>
@@ -693,8 +713,36 @@ const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage,
                   >
                     <div className="p-4 space-y-4">
                       {/* Share Options */}
-                      <div className="space-y-2">
+                      <div className="space-y-4">
                          <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Share To</p>
+                         
+                         {onSaveToCloud && (
+                            <button 
+                                onClick={async () => {
+                                    const id = await onSaveToCloud();
+                                    if (id) {
+                                        const url = `${window.location.origin}${window.location.pathname}?v=${id}`;
+                                        try {
+                                            await navigator.clipboard.writeText(url);
+                                            setCopied(true);
+                                            setTimeout(() => setCopied(false), 2000);
+                                        } catch (e) {
+                                            prompt('Copy this link to share:', url);
+                                        }
+                                    }
+                                }}
+                                className={`flex items-center gap-3 w-full p-2.5 rounded-xl transition-colors group border ${copied ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-500/20 text-green-700 dark:text-green-400' : 'bg-cyan-50 dark:bg-cyan-900/20 hover:bg-cyan-100 dark:hover:bg-cyan-900/40 border-cyan-200 dark:border-cyan-500/20 text-cyan-700 dark:text-cyan-400'}`}
+                            >
+                                <div className={`p-2 rounded-lg group-hover:scale-110 transition-transform shadow-sm ${copied ? 'bg-white dark:bg-slate-800 text-green-600 dark:text-green-400' : 'bg-white dark:bg-slate-800 text-cyan-600 dark:text-cyan-400'}`}>
+                                    {copied ? <Check className="w-4 h-4" /> : <Cloud className="w-4 h-4" />}
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-sm font-bold leading-tight">{copied ? 'Link Copied!' : 'Cloud Share'}</p>
+                                    <p className="text-[10px] opacity-60">Save & Get Share Link</p>
+                                </div>
+                            </button>
+                         )}
+
                          <div className="flex justify-between gap-1 px-1">
                             <button onClick={handleNativeShare} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl hover:bg-cyan-50 dark:hover:bg-cyan-900/20 text-slate-600 dark:text-slate-300 hover:text-cyan-600 transition-colors" title="Device Share"><Share2 className="w-5 h-5"/></button>
                             <button onClick={() => handleSocialShare('twitter')} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl hover:bg-[#1DA1F2]/10 text-slate-600 dark:text-slate-300 hover:text-[#1DA1F2] transition-colors" title="Twitter"><Twitter className="w-5 h-5"/></button>
@@ -737,7 +785,7 @@ const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage,
         <div className="flex justify-center flex-wrap gap-2">
           <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl p-1.5 rounded-2xl shadow-xl border border-slate-200 dark:border-white/10 flex items-center gap-1">
             <button 
-              onClick={() => { setTool('view'); setSelection(null); }}
+              onClick={() => { setTool('view'); setSelection(null); setSelectedAnnotation(null); }}
               className={`p-2.5 rounded-xl transition-all relative ${tool === 'view' ? 'bg-cyan-600 text-white shadow-lg ring-2 ring-cyan-500/50' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
               title="View & Interact"
             >
@@ -822,13 +870,14 @@ const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage,
               <>
                 <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-1"></div>
                 <div className="flex flex-col sm:flex-row items-center gap-3 px-2 py-1">
-                  <div className="flex items-center gap-1.5">
-                    {['#06b6d4', '#ef4444', '#10b981', '#ffffff'].map(c => (
+                  <div className="flex items-center gap-1.5 flex-wrap max-w-[120px] sm:max-w-none justify-center">
+                    {['#06b6d4', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#ffffff', '#000000'].map(c => (
                         <button 
                         key={c}
                         onClick={() => setActiveColor(c)}
-                        className={`w-6 h-6 rounded-full border border-black/10 transition-transform ${activeColor === c ? 'scale-125 ring-2 ring-cyan-500' : 'hover:scale-110'}`}
+                        className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-black/10 transition-all ${activeColor === c ? 'scale-125 ring-2 ring-cyan-500 shadow-md' : 'hover:scale-110 opacity-80 hover:opacity-100'}`}
                         style={{ backgroundColor: c }}
+                        title={`Select ${c} color`}
                         />
                     ))}
                   </div>
@@ -836,13 +885,16 @@ const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage,
                   <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-700/50 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-white/5">
                     {tool === 'draw' ? (
                         <>
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Width</span>
+                            <div className="flex items-center gap-1 text-slate-500 mr-1" title="Stroke Width">
+                                <Edit3 className="w-3 h-3" />
+                                <span className="text-[10px] font-bold uppercase tracking-wider">Width</span>
+                            </div>
                             <div className="flex items-center gap-2">
                                 <input 
                                     type="range" min="1" max="40" 
                                     value={activeStrokeWidth} 
                                     onChange={(e) => setActiveStrokeWidth(parseInt(e.target.value))}
-                                    className="w-20 sm:w-24 accent-cyan-500 h-1"
+                                    className="w-16 sm:w-24 accent-cyan-500 h-1 cursor-pointer"
                                 />
                                 <input 
                                     type="number"
@@ -850,27 +902,30 @@ const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage,
                                     max="40"
                                     value={activeStrokeWidth}
                                     onChange={(e) => setActiveStrokeWidth(Math.max(1, Math.min(40, parseInt(e.target.value) || 1)))}
-                                    className="w-10 bg-slate-50 dark:bg-slate-950/50 text-cyan-600 dark:text-cyan-400 text-[10px] font-mono font-bold rounded px-1 py-0.5 focus:ring-1 ring-cyan-500 border border-slate-200 dark:border-white/10"
+                                    className="w-8 sm:w-10 bg-slate-50 dark:bg-slate-950/50 text-cyan-600 dark:text-cyan-400 text-[10px] font-mono font-bold rounded px-1 py-0.5 focus:ring-1 ring-cyan-500 border border-slate-200 dark:border-white/10"
                                 />
                             </div>
                         </>
                     ) : (
                         <>
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Size</span>
+                            <div className="flex items-center gap-1 text-slate-500 mr-1" title="Font Size">
+                                <TypeIcon className="w-3 h-3" />
+                                <span className="text-[10px] font-bold uppercase tracking-wider">Size</span>
+                            </div>
                             <div className="flex items-center gap-2">
                                 <input 
-                                    type="range" min="10" max="100" 
+                                    type="range" min="10" max="120" 
                                     value={activeFontSize} 
                                     onChange={(e) => setActiveFontSize(parseInt(e.target.value))}
-                                    className="w-20 sm:w-24 accent-cyan-500 h-1"
+                                    className="w-16 sm:w-24 accent-cyan-500 h-1 cursor-pointer"
                                 />
                                 <input 
                                     type="number"
                                     min="10"
-                                    max="100"
+                                    max="120"
                                     value={activeFontSize}
-                                    onChange={(e) => setActiveFontSize(Math.max(10, Math.min(100, parseInt(e.target.value) || 10)))}
-                                    className="w-12 bg-slate-50 dark:bg-slate-950/50 text-cyan-600 dark:text-cyan-400 text-[10px] font-mono font-bold rounded px-1 py-0.5 focus:ring-1 ring-cyan-500 border border-slate-200 dark:border-white/10"
+                                    onChange={(e) => setActiveFontSize(Math.max(10, Math.min(120, parseInt(e.target.value) || 10)))}
+                                    className="w-10 sm:w-12 bg-slate-50 dark:bg-slate-950/50 text-cyan-600 dark:text-cyan-400 text-[10px] font-mono font-bold rounded px-1 py-0.5 focus:ring-1 ring-cyan-500 border border-slate-200 dark:border-white/10"
                                 />
                             </div>
                         </>
@@ -881,33 +936,41 @@ const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage,
             )}
 
             <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-1"></div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               <button 
                 onClick={undo}
                 disabled={historyIndex === 0}
-                className={`p-2.5 rounded-xl transition-all ${historyIndex > 0 ? 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700' : 'text-slate-300 dark:text-slate-600 opacity-50'}`}
-                title="Undo"
+                className={`p-2 sm:p-2.5 rounded-xl transition-all ${historyIndex > 0 ? 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95' : 'text-slate-300 dark:text-slate-600 opacity-50 cursor-not-allowed'}`}
+                title="Undo (Ctrl+Z)"
               >
-                <Undo2 className="w-5 h-5" />
+                <Undo2 className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               <button 
                 onClick={redo}
                 disabled={historyIndex === annotationHistory.length - 1}
-                className={`p-2.5 rounded-xl transition-all ${historyIndex < annotationHistory.length - 1 ? 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700' : 'text-slate-300 dark:text-slate-600 opacity-50'}`}
-                title="Redo"
+                className={`p-2 sm:p-2.5 rounded-xl transition-all ${historyIndex < annotationHistory.length - 1 ? 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95' : 'text-slate-300 dark:text-slate-600 opacity-50 cursor-not-allowed'}`}
+                title="Redo (Ctrl+Y)"
               >
-                <Redo2 className="w-5 h-5" />
+                <Redo2 className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
 
             {annotations.length > 0 && (
-              <button 
-                onClick={() => pushHistory([])}
-                className="ml-1 p-2.5 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
-                title="Clear All Annotations"
-              >
-                <RefreshCcw className="w-5 h-5" />
-              </button>
+              <>
+                 <div className="w-px h-6 bg-slate-200 dark:bg-white/10 mx-1"></div>
+                 <button 
+                    onClick={() => {
+                        if (confirm('Are you sure you want to clear all annotations?')) {
+                            pushHistory([]);
+                        }
+                    }}
+                    className="p-2 sm:p-2.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-400 hover:text-red-500 transition-all flex items-center gap-1 group"
+                    title="Clear All Annotations"
+                  >
+                    <Trash2 className="w-4 h-4 sm:w-5 sm:h-5 group-hover:shake" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:block">Clear All</span>
+                  </button>
+              </>
             )}
           </div>
 
@@ -1041,10 +1104,10 @@ const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage,
 
                     <div className="p-6 sm:p-10 space-y-6">
                         <div className="space-y-4">
-                            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Description</h3>
-                            <p className="text-base sm:text-lg text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Elaborated Analysis</h3>
+                            <div className="text-base sm:text-lg text-slate-700 dark:text-slate-300 leading-relaxed font-medium whitespace-pre-line space-y-4">
                                 {hotspot.description}
-                            </p>
+                            </div>
                         </div>
                         
                         <div className="flex flex-col sm:flex-row gap-4 pt-6">

@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isVerified() {
+      return isSignedIn() && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'google.com');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // User session data
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && 
+                      request.resource.data.keys().hasAll(['uid', 'email', 'isAdmin', 'createdAt']) &&
+                      (request.resource.data.email == 'jonpboy@gmail.com' ? request.resource.data.isAdmin == true : request.resource.data.isAdmin == false);
+      allow update: if (isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName'])) || isAdmin();
+    }
+
+    // Infographics
+    match /infographics/{infographicId} {
+      allow get: if (resource.data.isPublic == true) || isOwner(resource.data.userId) || isAdmin();
+      allow list: if (resource.data.isPublic == true) || isOwner(resource.data.userId) || isAdmin();
+      
+      function isValidInfographic(data) {
+        return data.userId is string &&
+               data.imageUrl is string &&
+               data.prompt is string &&
+               data.createdAt is timestamp;
+      }
+
+      allow create: if isOwner(request.resource.data.userId) && isValidInfographic(request.resource.data);
+      allow update: if (isOwner(resource.data.userId) || isAdmin()) && isValidInfographic(request.resource.data);
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+  }
+}

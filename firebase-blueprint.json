@@ -1,0 +1,48 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "App user with roles and profile info",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "isAdmin": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Infographic": {
+      "title": "Infographic",
+      "description": "Generated infographic data with annotations",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "prompt": { "type": "string" },
+        "title": { "type": "string" },
+        "level": { "type": "string" },
+        "style": { "type": "string" },
+        "language": { "type": "string" },
+        "artForm": { "type": "string" },
+        "hotspots": { "type": "array" },
+        "annotations": { "type": "array" },
+        "isPublic": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "imageUrl", "prompt", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Store user profile and roles"
+    },
+    "infographics/{infographicId}": {
+      "schema": "Infographic",
+      "description": "Store all generated infographics"
+    }
+  }
+}
