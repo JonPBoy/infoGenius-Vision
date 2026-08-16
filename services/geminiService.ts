@@ -32,6 +32,7 @@ const getLevelInstruction = (level: ComplexityLevel): string => {
 
 const getStyleInstruction = (style: VisualStyle): string => {
   switch (style) {
+    case 'Let AI Decide': return "Aesthetic: Dynamically choose the most visually stunning, clear, and contextually appropriate aesthetic and color palette for this topic.";
     case 'Minimalist': return "Aesthetic: Bauhaus Minimalist. Flat vector art, limited color palette (2-3 colors), reliance on negative space and simple geometric shapes.";
     case 'Realistic': return "Aesthetic: Photorealistic Composite. Cinematic lighting, 8k resolution, highly detailed textures. Looks like a photograph.";
     case 'Cartoon': return "Aesthetic: Educational Comic. Vibrant colors, thick outlines, expressive cel-shaded style.";
@@ -39,6 +40,29 @@ const getStyleInstruction = (style: VisualStyle): string => {
     case 'Futuristic': return "Aesthetic: Cyberpunk HUD. Glowing neon blue/cyan lines on dark background, holographic data visualization, 3D wireframes.";
     case '3D Render': return "Aesthetic: 3D Isometric Render. Claymorphism or high-gloss plastic texture, studio lighting, soft shadows, looks like a physical model.";
     case 'Sketch': return "Aesthetic: Da Vinci Notebook. Ink on parchment sketch, handwritten annotations style, rough but accurate lines.";
+    
+    // 20 Cool Aesthetics with rich prompt directives
+    case 'Cyberpunk Neon HUD': return "Aesthetic: Cyberpunk Neon HUD. High-tech futuristic interface, dark matte obsidian background, glowing electric cyan and magenta neon UI wireframes, telemetry readouts, holographic glyphs, and luminous data overlays.";
+    case 'Solarpunk Utopia': return "Aesthetic: Solarpunk Utopia. Bright golden sunlight, lush vertical greenery, harmonious biophilic architecture, warm terracotta and emerald tones, clean curved solar tech, hopeful ecological aesthetic.";
+    case 'Synthwave Retrowave': return "Aesthetic: 80s Synthwave & Retrowave. Outrun aesthetic with magenta-to-orange gradient sunsets, glowing wireframe horizon grids, chrome typography, palm silhouettes, and 1980s VHS tape neon vibes.";
+    case 'Glassmorphism Aero': return "Aesthetic: Glassmorphism Aero. Translucent frosted glass panels, soft blurred background refractions, vivid iridescent gradients, ultra-clean modern typography, and floating dimensional UI layers.";
+    case 'Dark Academia': return "Aesthetic: Dark Academia. Rich mahogany and brass tones, vintage anatomical and scientific engravings, antique book textures, golden hour candlelight, scholarly gothic elegance.";
+    case 'Bioluminescent Deep Sea': return "Aesthetic: Bioluminescent Deep Sea. Pitch-black abyssal ocean backdrop, radiant glowing creatures with electric turquoise, neon coral and bioluminescent cyan highlights, ethereal underwater floating particles.";
+    case 'Stained Glass Gothic': return "Aesthetic: Gothic Stained Glass Cathedral. Radiant sunlight passing through jewel-toned stained glass panels, bold black lead caming outlines, sacred geometric mandalas, ruby, cobalt, and amber refractions.";
+    case 'Papercut Shadowbox': return "Aesthetic: Multi-Layered Papercut Shadowbox. 3D layered textured craft paper, deep cast shadows between paper tiers, warm ambient backlighting, delicate cut-out silhouettes with depth and physical tactile quality.";
+    case 'Isometric Voxel': return "Aesthetic: Isometric Voxel Art. Charming 3D cubic pixel art diorama, vibrant clean colors, miniature tilt-shift depth of field, detailed volumetric voxel blocks arranged into an intricate scene.";
+    case 'Swiss Typographic Grid': return "Aesthetic: Swiss International Typographic Style (Helvetica Modernism). Asymmetric strict grid system, bold oversized typography, stark primary red/black/white palette, mathematical clarity and functional perfection.";
+    case 'Claymation Stop-Motion': return "Aesthetic: Claymation & Plasticine Stop-Motion. Handcrafted clay models with visible fingerprint textures, tactile plasticine figures, warm tabletop studio rim lighting, miniature set design.";
+    case 'Cosmic Nebula': return "Aesthetic: Deep Space Cosmic Nebula. Swirling stellar dust clouds, vibrant ultraviolet and interstellar cyan gas filaments, glowing star clusters, awe-inspiring celestial galaxy backdrop.";
+    case 'Blueprint Cyanotype': return "Aesthetic: Architectural Blueprint & Cyanotype. Deep Prussian blue canvas, crisp white architectural drafting lines, technical measurements, grid markings, authentic cyanotype sun print texture.";
+    case 'Risograph Grain': return "Aesthetic: Risograph Print. Tactile halftone dots, vibrant spot-color ink overlap (fluorescent pink, teal, sunflower yellow), grainy riso print texture on natural unbleached paper.";
+    case 'Ghibli Anime Serenity': return "Aesthetic: Studio Ghibli Anime Serenity. Hand-painted gouache background, fluffy cumulus clouds in azure skies, lush soft green meadows, nostalgic golden sunlight, peaceful and heartwarming anime landscape.";
+    case 'Liminal Dreamscape': return "Aesthetic: Surreal Liminal Dreamscape. Eerie serene dream logic, pastel surrealist architecture, infinite soft horizon, gentle diffused lighting, floating geometric elements reminiscent of surreal paintings.";
+    case 'Steampunk Brass Workshop': return "Aesthetic: Victorian Steampunk Workshop. Polished brass gears, copper pipes, pressure gauges with glass lenses, steam vents, intricate clockwork mechanisms, rich amber-brown industrial warmth.";
+    case 'Neon Noir Detective': return "Aesthetic: Neon Noir Cinema. Rain-slicked wet pavement with neon sign reflections, dramatic high-contrast chiaroscuro shadows, moody amber and cool cyan street lights, atmospheric haze.";
+    case 'Holographic Iridescent': return "Aesthetic: Holographic Iridescent Y2K. Shimmering pearlescent sheen, liquid mercury chrome textures, rainbow pastel light diffraction, translucent futuristic glossy prisms.";
+    case 'Fantasy Cartography': return "Aesthetic: Ancient Tolkien Fantasy Map. Aged parchment parchment roll, hand-drawn topographic mountains, calligraphic compass rose, sea monsters, banner labels, burnt edge antique map aesthetic.";
+    
     default: return "Aesthetic: High-quality digital scientific illustration. Clean, modern, highly detailed.";
   }
 };

@@ -6,11 +6,84 @@ export type AspectRatio = '16:9' | '9:16' | '1:1';
 
 export type ComplexityLevel = 'Elementary' | 'High School' | 'College' | 'Expert';
 
-export type VisualStyle = 'Default' | 'Minimalist' | 'Realistic' | 'Cartoon' | 'Vintage' | 'Futuristic' | '3D Render' | 'Sketch';
+export type VisualStyle = 
+  | 'Let AI Decide' 
+  | '3D Render' 
+  | 'Cartoon' 
+  | 'Default' 
+  | 'Futuristic' 
+  | 'Minimalist' 
+  | 'Realistic' 
+  | 'Sketch' 
+  | 'Vintage'
+  // 20 Cool Distinctive Aesthetics
+  | 'Cyberpunk Neon HUD'
+  | 'Solarpunk Utopia'
+  | 'Synthwave Retrowave'
+  | 'Glassmorphism Aero'
+  | 'Dark Academia'
+  | 'Bioluminescent Deep Sea'
+  | 'Stained Glass Gothic'
+  | 'Papercut Shadowbox'
+  | 'Isometric Voxel'
+  | 'Swiss Typographic Grid'
+  | 'Claymation Stop-Motion'
+  | 'Cosmic Nebula'
+  | 'Blueprint Cyanotype'
+  | 'Risograph Grain'
+  | 'Ghibli Anime Serenity'
+  | 'Liminal Dreamscape'
+  | 'Steampunk Brass Workshop'
+  | 'Neon Noir Detective'
+  | 'Holographic Iridescent'
+  | 'Fantasy Cartography';
 
 export type Language = 'English' | 'Spanish' | 'French' | 'German' | 'Mandarin' | 'Japanese' | 'Hindi' | 'Arabic' | 'Portuguese' | 'Russian';
 
-export type ArtForm = 'None' | 'Rubber Hose Animation' | 'Looney Tunes' | 'Tom and Jerry' | 'Betty Boop' | 'Yogi Bear' | 'Porky Pig' | 'Tin Tin' | 'Classic Disney' | 'Salvador Dali' | 'Popeye' | 'Tim Burton' | 'Johnny the Homicidal Maniac' | 'Invader Zim' | 'WWII Pin-up Art' | 'Studio Ghibli' | 'Cyberpunk Anime' | 'Art Nouveau' | 'Pixel Art' | 'Jean-Michel Basquiat' | 'Pop Art' | 'Steampunk' | 'Ukiyo-e Woodblock';
+export type ArtForm = 
+  | 'None'
+  | 'Adventure Time'
+  | 'Afrofuturism'
+  | 'Art Deco'
+  | 'Art Nouveau'
+  | 'Banksy'
+  | 'Bauhaus'
+  | 'Betty Boop'
+  | 'Charley Harper'
+  | 'Classic Disney'
+  | 'Claymation'
+  | 'Claude Monet'
+  | 'Cyberpunk Anime'
+  | 'Dark Fantasy'
+  | 'Invader Zim'
+  | 'Jack Kirby'
+  | 'Jean-Michel Basquiat'
+  | 'Johnny the Homicidal Maniac'
+  | 'Keith Haring'
+  | 'Looney Tunes'
+  | 'Moebius'
+  | 'Origami Papercraft'
+  | 'Pablo Picasso'
+  | 'Pixel Art'
+  | 'Pop Art'
+  | 'Popeye'
+  | 'Porky Pig'
+  | 'Psychedelic 60s'
+  | 'Retro 90s Anime'
+  | 'Risograph Print'
+  | 'Rubber Hose Animation'
+  | 'Salvador Dali'
+  | 'Steampunk'
+  | 'Studio Ghibli'
+  | 'Tin Tin'
+  | 'Tim Burton'
+  | 'Tom and Jerry'
+  | 'Ukiyo-e Woodblock'
+  | 'Vaporwave'
+  | 'Vincent van Gogh'
+  | 'Watercolor Botanical'
+  | 'WWII Pin-up Art'
+  | 'Yogi Bear';
 
 export interface Hotspot {
   id: string;

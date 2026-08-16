@@ -87,23 +87,68 @@ export const logout = () => signOut(auth);
 
 // Infographic Helpers
 export const saveInfographic = async (infographicData: any) => {
-  if (!auth.currentUser) throw new Error('User must be logged in to save');
-  
   const id = infographicData.id || doc(collection(db, 'infographics')).id;
   const path = `infographics/${id}`;
   
+  const userId = auth.currentUser ? auth.currentUser.uid : 'guest';
+  const payload = {
+    id,
+    userId,
+    imageUrl: infographicData.data || infographicData.imageUrl || '',
+    prompt: infographicData.prompt || 'Infographic',
+    title: infographicData.title || infographicData.prompt || 'Infographic',
+    level: infographicData.level || 'High School',
+    style: infographicData.style || 'Default',
+    language: infographicData.language || 'English',
+    artForm: infographicData.artForm || 'None',
+    hotspots: infographicData.hotspots || [],
+    annotations: infographicData.annotations || [],
+    annotationHistoryStates: infographicData.annotationHistoryStates || [],
+    historyIndex: infographicData.historyIndex || 0,
+    isPublic: true,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  };
+
   try {
-    await setDoc(doc(db, 'infographics', id), {
-      ...infographicData,
-      userId: auth.currentUser.uid,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      isPublic: infographicData.isPublic ?? false
-    });
+    await setDoc(doc(db, 'infographics', id), payload, { merge: true });
     return id;
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
+};
+
+export const getInfographicById = async (id: string) => {
+  const path = `infographics/${id}`;
+  try {
+    const docRef = doc(db, 'infographics', id);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return { id: snap.id, ...snap.data() };
+    }
+    return null;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
+    return null;
+  }
+};
+
+export const generateShareableLink = async (infographicData: any): Promise<{ id: string; shareUrl: string }> => {
+  const id = await saveInfographic(infographicData);
+  if (!id) throw new Error('Failed to generate unique identifier for infographic');
+  
+  const origin = window.location.origin;
+  const pathname = window.location.pathname;
+  const shareUrl = `${origin}${pathname}?v=${id}`;
+  
+  // Update address bar seamlessly without refreshing
+  try {
+    window.history.replaceState(null, '', shareUrl);
+  } catch (e) {
+    // Ignore iframe navigation sandbox restrictions if any
+  }
+
+  return { id, shareUrl };
 };
 
 export const getUserInfographics = (userId: string, callback: (data: any[]) => void) => {

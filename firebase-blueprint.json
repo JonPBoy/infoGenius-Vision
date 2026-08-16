@@ -15,9 +15,10 @@
     },
     "Infographic": {
       "title": "Infographic",
-      "description": "Generated infographic data with annotations",
+      "description": "Generated infographic data with annotations and sharing",
       "type": "object",
       "properties": {
+        "id": { "type": "string" },
         "userId": { "type": "string" },
         "imageUrl": { "type": "string" },
         "prompt": { "type": "string" },
@@ -28,6 +29,8 @@
         "artForm": { "type": "string" },
         "hotspots": { "type": "array" },
         "annotations": { "type": "array" },
+        "annotationHistoryStates": { "type": "array" },
+        "historyIndex": { "type": "number" },
         "isPublic": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }

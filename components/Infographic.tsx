@@ -32,12 +32,21 @@ import {
   RotateCcw,
   ExternalLink,
   ChevronRight,
+  ChevronDown,
   Maximize,
-  Cloud
+  Cloud,
+  Copy,
+  QrCode,
+  Send,
+  Mail,
+  Loader2,
+  CheckCircle2,
+  Globe
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
+import { generateShareableLink } from '../services/firebase';
 // Using the central Annotation type instead of redefining it to prevent property mismatch
 import type { Annotation } from '../types';
 
@@ -54,11 +63,18 @@ const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage,
   const [editPrompt, setEditPrompt] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isShareMenuOpen, setIsShareMenuOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [activeHotspot, setActiveHotspot] = useState<string | null>(null);
   const [expandedHotspot, setExpandedHotspot] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isDownloadingPNG, setIsDownloadingPNG] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string>('');
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [showQRCode, setShowQRCode] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   
   // Annotation & Mode State
   const [tool, setTool] = useState<'view' | 'edit' | 'draw' | 'text'>('view');
@@ -283,82 +299,184 @@ const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage,
     try {
       const canvas = await html2canvas(containerRef.current, {
         useCORS: true,
-        backgroundColor: null,
-        scale: 2 // High resolution
+        allowTaint: true,
+        backgroundColor: '#0f172a',
+        scale: 3, // 3x Ultra High resolution
+        logging: false
       });
       return canvas;
+    } catch (e) {
+      console.error('html2canvas capture error:', e);
+      return null;
     } finally {
       hotspots.forEach(h => (h as HTMLElement).style.display = 'block');
       cornerMarkers.forEach(cm => (cm as HTMLElement).style.display = 'block');
     }
   };
 
+  const getExportFilename = (extension: string) => {
+    const cleanPrompt = (image.prompt || 'infographic')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 45);
+    return `${cleanPrompt || 'infographic'}-hd.${extension}`;
+  };
+
   const exportPNG = async () => {
-    const canvas = await captureVisual();
-    if (!canvas) return;
-    
-    const link = document.createElement('a');
-    link.download = `infographic-${image.id}-annotated.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-    setIsDownloadMenuOpen(false);
+    setIsDownloadingPNG(true);
+    try {
+      const canvas = await captureVisual();
+      const filename = getExportFilename('png');
+
+      if (canvas) {
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = canvas.toDataURL('image/png', 1.0);
+        link.click();
+      } else {
+        // Fallback to direct raw image download if canvas capture fails
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = image.data;
+        link.click();
+      }
+
+      setDownloadSuccess(true);
+      setToastMessage('High-resolution PNG downloaded successfully!');
+      setTimeout(() => setDownloadSuccess(false), 3000);
+      setTimeout(() => setToastMessage(null), 3500);
+    } catch (err) {
+      console.error('Failed to export PNG:', err);
+      // Fallback
+      const link = document.createElement('a');
+      link.download = getExportFilename('png');
+      link.href = image.data;
+      link.click();
+      setToastMessage('PNG downloaded!');
+      setTimeout(() => setToastMessage(null), 3500);
+    } finally {
+      setIsDownloadingPNG(false);
+      setIsDownloadMenuOpen(false);
+    }
   };
 
   const exportPDF = async () => {
-    const canvas = await captureVisual();
-    if (!canvas) return;
+    setIsDownloadingPNG(true);
+    try {
+      const canvas = await captureVisual();
+      if (!canvas) return;
 
-    const imgData = canvas.toDataURL('image/png');
-    const width = canvas.width;
-    const height = canvas.height;
-    
-    const doc = new jsPDF({
-      orientation: width > height ? 'landscape' : 'portrait',
-      unit: 'px',
-      format: [width, height]
-    });
-    
-    doc.addImage(imgData, 'PNG', 0, 0, width, height);
-    doc.save(`infographic-${image.id}-annotated.pdf`);
-    setIsDownloadMenuOpen(false);
+      const imgData = canvas.toDataURL('image/png', 1.0);
+      const width = canvas.width;
+      const height = canvas.height;
+      
+      const doc = new jsPDF({
+        orientation: width > height ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [width, height]
+      });
+      
+      doc.addImage(imgData, 'PNG', 0, 0, width, height);
+      doc.save(getExportFilename('pdf'));
+      setToastMessage('PDF document exported successfully!');
+      setTimeout(() => setToastMessage(null), 3500);
+    } catch (err) {
+      console.error('Failed to export PDF:', err);
+    } finally {
+      setIsDownloadingPNG(false);
+      setIsDownloadMenuOpen(false);
+    }
   };
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const generateAndGetShareUrl = async (): Promise<string> => {
+    if (shareUrl) return shareUrl;
+    setIsGeneratingLink(true);
+    try {
+      const { shareUrl: url } = await generateShareableLink({
+        ...image,
+        annotations,
+        annotationHistoryStates: annotationHistory,
+        historyIndex
+      });
+      setShareUrl(url);
+      return url;
+    } catch (e) {
+      console.error('Error generating share link:', e);
+      const fallbackUrl = `${window.location.origin}${window.location.pathname}?v=${image.id}`;
+      setShareUrl(fallbackUrl);
+      return fallbackUrl;
+    } finally {
+      setIsGeneratingLink(false);
+    }
   };
 
-  const handleSocialShare = (platform: string) => {
-    const text = encodeURIComponent(`Check out this AI-generated infographic about ${image.prompt}! #InfoGenius #AI`);
-    const url = encodeURIComponent(window.location.href);
+  const handleCopyLink = async (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    try {
+      const url = await generateAndGetShareUrl();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = url;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopied(true);
+      setToastMessage('Unique share link copied to clipboard!');
+      setTimeout(() => setCopied(false), 3000);
+      setTimeout(() => setToastMessage(null), 3500);
+    } catch (err) {
+      console.error('Failed to copy link', err);
+      setToastMessage('Share link generated! Check share dialog.');
+      setTimeout(() => setToastMessage(null), 3500);
+    }
+  };
+
+  const handleOpenShareModal = async (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setIsShareModalOpen(true);
+    setIsShareMenuOpen(false);
+    if (!shareUrl) {
+      await generateAndGetShareUrl();
+    }
+  };
+
+  const handleSocialShare = async (platform: string) => {
+    const url = await generateAndGetShareUrl();
+    const text = encodeURIComponent(`Explore this interactive AI infographic on "${image.prompt}":`);
+    const encodedUrl = encodeURIComponent(url);
     
-    let shareUrl = '';
+    let target = '';
     switch(platform) {
-      case 'twitter': shareUrl = `https://twitter.com/intent/tweet?text=${text}&url=${url}`; break;
-      case 'facebook': shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`; break;
-      case 'linkedin': shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${url}`; break;
+      case 'twitter': target = `https://twitter.com/intent/tweet?text=${text}&url=${encodedUrl}`; break;
+      case 'facebook': target = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`; break;
+      case 'linkedin': target = `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`; break;
+      case 'whatsapp': target = `https://api.whatsapp.com/send?text=${text}%20${encodedUrl}`; break;
+      case 'email': target = `mailto:?subject=${encodeURIComponent(`Interactive Infographic: ${image.prompt}`)}&body=${text}%0A%0A${encodedUrl}`; break;
     }
     
-    if (shareUrl) window.open(shareUrl, '_blank');
+    if (target) window.open(target, '_blank');
     setIsShareMenuOpen(false);
   };
 
   const handleNativeShare = async () => {
+    const url = await generateAndGetShareUrl();
     if (navigator.share) {
       try {
-        const response = await fetch(image.data);
-        const blob = await response.blob();
-        const file = new File([blob], 'infographic.png', { type: 'image/png' });
-        
         await navigator.share({
-          files: [file],
-          title: 'InfoGenius Infographic',
-          text: `Visualizing: ${image.prompt}`,
+          title: `InfoGenius Infographic: ${image.prompt}`,
+          text: `Explore this interactive AI infographic about ${image.prompt}`,
+          url: url
         });
       } catch (err) {
         console.error('Sharing failed', err);
       }
+    } else {
+      await handleCopyLink();
     }
     setIsShareMenuOpen(false);
   };
@@ -624,67 +742,115 @@ const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage,
         </div>
         
         {/* Hover Overlay for Quick Actions */}
-        <div className="absolute top-6 right-6 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-30 items-start">
-          <div className="relative">
+        <div className="absolute top-6 right-6 flex items-center gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-30">
+          {/* Direct Download High-Resolution PNG Button */}
+          <div className="flex items-center rounded-xl overflow-hidden shadow-lg border border-white/10 backdrop-blur-md">
             <button 
-              onClick={() => { setIsDownloadMenuOpen(!isDownloadMenuOpen); setIsShareMenuOpen(false); }}
-              className="bg-black/60 backdrop-blur-md text-white p-3 rounded-xl shadow-lg hover:bg-cyan-600 transition-colors border border-white/10 block relative"
-              title="Download & Export"
+              onClick={exportPNG}
+              disabled={isDownloadingPNG}
+              className={`px-3.5 py-3 transition-all flex items-center gap-2 font-medium text-xs ${
+                downloadSuccess 
+                  ? 'bg-emerald-600/90 text-white shadow-emerald-500/30' 
+                  : 'bg-black/60 text-white hover:bg-cyan-600'
+              }`}
+              title="Download high-resolution PNG"
             >
-              <Download className="w-5 h-5" />
+              {isDownloadingPNG ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : downloadSuccess ? (
+                <Check className="w-4 h-4 text-white" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline font-bold">
+                {isDownloadingPNG ? 'Exporting...' : downloadSuccess ? 'Downloaded!' : 'Download PNG'}
+              </span>
             </button>
 
-            <AnimatePresence>
-              {isDownloadMenuOpen && (
-                <>
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-40 bg-transparent"
-                    onClick={() => setIsDownloadMenuOpen(false)}
-                  />
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9, y: -10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.9, y: -10 }}
-                    className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden z-50"
-                  >
-                    <div className="p-4 space-y-4">
-                      {/* Save Options */}
-                      <div className="space-y-2">
-                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Export Visual</p>
-                        <button 
-                          onClick={exportPNG}
-                          className="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-slate-700 dark:text-slate-200 group"
-                        >
-                          <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg group-hover:scale-110 transition-transform">
-                            <ImageIcon className="w-4 h-4" />
-                          </div>
-                          <div className="text-left">
-                            <p className="text-sm font-bold leading-tight">High Res PNG</p>
-                            <p className="text-[10px] opacity-60">Visual + Markup</p>
-                          </div>
-                        </button>
-                        <button 
-                          onClick={exportPDF}
-                          className="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-slate-700 dark:text-slate-200 group"
-                        >
-                          <div className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg group-hover:scale-110 transition-transform">
-                            <FileText className="w-4 h-4" />
-                          </div>
-                          <div className="text-left">
-                            <p className="text-sm font-bold leading-tight">Document PDF</p>
-                            <p className="text-[10px] opacity-60">Full Annotation Export</p>
-                          </div>
-                        </button>
+            {/* Dropdown toggle for additional export formats */}
+            <div className="relative border-l border-white/10">
+              <button
+                onClick={() => { setIsDownloadMenuOpen(!isDownloadMenuOpen); setIsShareMenuOpen(false); }}
+                className="bg-black/60 hover:bg-cyan-600 text-white p-3 transition-colors flex items-center justify-center"
+                title="More Export Options (PDF)"
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+
+              <AnimatePresence>
+                {isDownloadMenuOpen && (
+                  <>
+                    <motion.div 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 z-40 bg-transparent"
+                      onClick={() => setIsDownloadMenuOpen(false)}
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9, y: -10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                      className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden z-50"
+                    >
+                      <div className="p-4 space-y-4">
+                        {/* Save Options */}
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Export Options</p>
+                          <button 
+                            onClick={exportPNG}
+                            className="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-slate-700 dark:text-slate-200 group"
+                          >
+                            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg group-hover:scale-110 transition-transform">
+                              <ImageIcon className="w-4 h-4" />
+                            </div>
+                            <div className="text-left">
+                              <p className="text-sm font-bold leading-tight">High Res PNG</p>
+                              <p className="text-[10px] opacity-60">Ultra-sharp PNG visual</p>
+                            </div>
+                          </button>
+                          <button 
+                            onClick={exportPDF}
+                            className="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-slate-700 dark:text-slate-200 group"
+                          >
+                            <div className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg group-hover:scale-110 transition-transform">
+                              <FileText className="w-4 h-4" />
+                            </div>
+                            <div className="text-left">
+                              <p className="text-sm font-bold leading-tight">Document PDF</p>
+                              <p className="text-[10px] opacity-60">Print-ready vector PDF</p>
+                            </div>
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
+
+          {/* Copy Link Direct Button */}
+          <button 
+            onClick={handleCopyLink}
+            className={`backdrop-blur-md px-3.5 py-3 rounded-xl shadow-lg transition-all border flex items-center gap-2 font-medium text-xs ${
+              copied 
+                ? 'bg-emerald-600/90 text-white border-emerald-400 shadow-emerald-500/30 ring-2 ring-emerald-400/50' 
+                : 'bg-black/60 text-white hover:bg-cyan-600 border-white/10 hover:border-cyan-400/30'
+            }`}
+            title="Copy unique link for this infographic"
+          >
+            {isGeneratingLink ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : copied ? (
+              <Check className="w-4 h-4 text-white" />
+            ) : (
+              <Copy className="w-4 h-4" />
+            )}
+            <span className="hidden sm:inline font-bold">
+              {copied ? 'Link Copied!' : 'Copy Link'}
+            </span>
+          </button>
 
           <div className="relative">
             <button 
@@ -709,13 +875,54 @@ const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage,
                     initial={{ opacity: 0, scale: 0.9, y: -10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.9, y: -10 }}
-                    className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden z-50"
+                    className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden z-50"
                   >
                     <div className="p-4 space-y-4">
                       {/* Share Options */}
-                      <div className="space-y-4">
-                         <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Share To</p>
+                      <div className="space-y-3">
+                         <div className="flex items-center justify-between pl-1">
+                           <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Share Creation</p>
+                           <button 
+                            onClick={handleOpenShareModal}
+                            className="text-[10px] font-bold text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1"
+                           >
+                             <span>More options</span>
+                             <ChevronRight className="w-3 h-3" />
+                           </button>
+                         </div>
                          
+                         {/* Primary Copy Link Button */}
+                         <button 
+                          onClick={handleCopyLink}
+                          className={`flex items-center gap-3 w-full p-2.5 rounded-xl transition-all border group ${
+                            copied 
+                              ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700/50 text-emerald-700 dark:text-emerald-300 ring-2 ring-emerald-500/20' 
+                              : 'bg-cyan-50 dark:bg-cyan-950/30 hover:bg-cyan-100 dark:hover:bg-cyan-900/40 border-cyan-200 dark:border-cyan-800/40 text-cyan-800 dark:text-cyan-200'
+                          }`}
+                        >
+                          <div className={`p-2 rounded-lg transition-all ${
+                            copied 
+                              ? 'bg-emerald-500 text-white' 
+                              : 'bg-cyan-600 text-white group-hover:scale-105'
+                          }`}>
+                            {isGeneratingLink ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : copied ? (
+                              <Check className="w-4 h-4" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </div>
+                          <div className="text-left flex-1 min-w-0">
+                            <p className="text-sm font-bold leading-tight truncate">
+                              {copied ? 'Unique Link Copied!' : 'Copy Unique Link'}
+                            </p>
+                            <p className="text-[10px] opacity-75 truncate">
+                              {copied ? 'Ready to paste anywhere' : 'Share with anyone directly'}
+                            </p>
+                          </div>
+                        </button>
+
                          {onSaveToCloud && (
                             <button 
                                 onClick={async () => {
@@ -725,42 +932,33 @@ const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage,
                                         try {
                                             await navigator.clipboard.writeText(url);
                                             setCopied(true);
-                                            setTimeout(() => setCopied(false), 2000);
+                                            setToastMessage('Saved to cloud & unique link copied!');
+                                            setTimeout(() => setCopied(false), 3000);
+                                            setTimeout(() => setToastMessage(null), 3500);
                                         } catch (e) {
                                             prompt('Copy this link to share:', url);
                                         }
                                     }
                                 }}
-                                className={`flex items-center gap-3 w-full p-2.5 rounded-xl transition-colors group border ${copied ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-500/20 text-green-700 dark:text-green-400' : 'bg-cyan-50 dark:bg-cyan-900/20 hover:bg-cyan-100 dark:hover:bg-cyan-900/40 border-cyan-200 dark:border-cyan-500/20 text-cyan-700 dark:text-cyan-400'}`}
+                                className="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-slate-700 dark:text-slate-200 group border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
                             >
-                                <div className={`p-2 rounded-lg group-hover:scale-110 transition-transform shadow-sm ${copied ? 'bg-white dark:bg-slate-800 text-green-600 dark:text-green-400' : 'bg-white dark:bg-slate-800 text-cyan-600 dark:text-cyan-400'}`}>
-                                    {copied ? <Check className="w-4 h-4" /> : <Cloud className="w-4 h-4" />}
+                                <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 group-hover:bg-cyan-100 dark:group-hover:bg-cyan-900/30 group-hover:text-cyan-600 transition-colors">
+                                    <Cloud className="w-4 h-4" />
                                 </div>
                                 <div className="text-left">
-                                    <p className="text-sm font-bold leading-tight">{copied ? 'Link Copied!' : 'Cloud Share'}</p>
-                                    <p className="text-[10px] opacity-60">Save & Get Share Link</p>
+                                    <p className="text-sm font-bold leading-tight">Cloud Save & Share</p>
+                                    <p className="text-[10px] opacity-60">Sync to your account</p>
                                 </div>
                             </button>
                          )}
 
-                         <div className="flex justify-between gap-1 px-1">
-                            <button onClick={handleNativeShare} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl hover:bg-cyan-50 dark:hover:bg-cyan-900/20 text-slate-600 dark:text-slate-300 hover:text-cyan-600 transition-colors" title="Device Share"><Share2 className="w-5 h-5"/></button>
-                            <button onClick={() => handleSocialShare('twitter')} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl hover:bg-[#1DA1F2]/10 text-slate-600 dark:text-slate-300 hover:text-[#1DA1F2] transition-colors" title="Twitter"><Twitter className="w-5 h-5"/></button>
-                            <button onClick={() => handleSocialShare('facebook')} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl hover:bg-[#4267B2]/10 text-slate-600 dark:text-slate-300 hover:text-[#4267B2] transition-colors" title="Facebook"><Facebook className="w-5 h-5"/></button>
-                            <button onClick={() => handleSocialShare('linkedin')} className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-xl hover:bg-[#0077b5]/10 text-slate-600 dark:text-slate-300 hover:text-[#0077b5] transition-colors" title="LinkedIn"><Linkedin className="w-5 h-5"/></button>
+                         <div className="flex justify-between gap-1 pt-1">
+                            <button onClick={handleNativeShare} className="p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-xl hover:bg-cyan-50 dark:hover:bg-cyan-900/20 text-slate-600 dark:text-slate-300 hover:text-cyan-600 transition-colors" title="Device Share"><Share2 className="w-4 h-4"/></button>
+                            <button onClick={() => handleSocialShare('twitter')} className="p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-xl hover:bg-[#1DA1F2]/10 text-slate-600 dark:text-slate-300 hover:text-[#1DA1F2] transition-colors" title="X / Twitter"><Twitter className="w-4 h-4"/></button>
+                            <button onClick={() => handleSocialShare('linkedin')} className="p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-xl hover:bg-[#0077b5]/10 text-slate-600 dark:text-slate-300 hover:text-[#0077b5] transition-colors" title="LinkedIn"><Linkedin className="w-4 h-4"/></button>
+                            <button onClick={() => handleSocialShare('facebook')} className="p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-xl hover:bg-[#4267B2]/10 text-slate-600 dark:text-slate-300 hover:text-[#4267B2] transition-colors" title="Facebook"><Facebook className="w-4 h-4"/></button>
+                            <button onClick={() => handleSocialShare('whatsapp')} className="p-2.5 bg-slate-50 dark:bg-slate-700/50 rounded-xl hover:bg-[#25D366]/10 text-slate-600 dark:text-slate-300 hover:text-[#25D366] transition-colors" title="WhatsApp"><Send className="w-4 h-4"/></button>
                          </div>
-                         <button 
-                          onClick={handleCopyLink}
-                          className="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors text-slate-700 dark:text-slate-200 group"
-                        >
-                          <div className={`p-2 rounded-lg transition-all ${copied ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 group-hover:bg-cyan-100 dark:group-hover:bg-cyan-900/30 group-hover:text-cyan-600'}`}>
-                            {copied ? <Check className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
-                          </div>
-                          <div className="text-left">
-                            <p className="text-sm font-bold leading-tight">{copied ? 'Link Copied!' : 'Copy Link'}</p>
-                            <p className="text-[10px] opacity-60">Share application access</p>
-                          </div>
-                        </button>
                       </div>
                     </div>
                   </motion.div>
@@ -1144,16 +1342,34 @@ const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage,
         <div className="fixed inset-0 z-[100] bg-slate-100/95 dark:bg-slate-950/95 backdrop-blur-xl flex flex-col animate-in fade-in duration-300">
             {/* Toolbar */}
             <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-50 pointer-events-none">
-                <div className="flex gap-2 pointer-events-auto bg-white/10 backdrop-blur-md p-1 rounded-lg border border-black/5 dark:border-white/10">
-                    <button onClick={handleZoomOut} className="p-2 hover:bg-black/10 dark:hover:bg-white/10 rounded-md text-slate-800 dark:text-slate-200 transition-colors" title="Zoom Out">
+                <div className="flex items-center gap-2 pointer-events-auto">
+                  <div className="flex gap-2 bg-white/10 backdrop-blur-md p-1 rounded-xl border border-black/5 dark:border-white/10">
+                    <button onClick={handleZoomOut} className="p-2 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg text-slate-800 dark:text-slate-200 transition-colors" title="Zoom Out">
                         <ZoomOut className="w-5 h-5" />
                     </button>
-                    <button onClick={handleResetZoom} className="p-2 hover:bg-black/10 dark:hover:bg-white/10 rounded-md text-slate-800 dark:text-slate-200 transition-colors" title="Reset Zoom">
+                    <button onClick={handleResetZoom} className="p-2 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg text-slate-800 dark:text-slate-200 transition-colors" title="Reset Zoom">
                         <span className="text-xs font-bold">{Math.round(zoomLevel * 100)}%</span>
                     </button>
-                    <button onClick={handleZoomIn} className="p-2 hover:bg-black/10 dark:hover:bg-white/10 rounded-md text-slate-800 dark:text-slate-200 transition-colors" title="Zoom In">
+                    <button onClick={handleZoomIn} className="p-2 hover:bg-black/10 dark:hover:bg-white/10 rounded-lg text-slate-800 dark:text-slate-200 transition-colors" title="Zoom In">
                         <ZoomIn className="w-5 h-5" />
                     </button>
+                  </div>
+
+                  <button
+                    onClick={exportPNG}
+                    disabled={isDownloadingPNG}
+                    className="px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl shadow-lg font-bold text-xs flex items-center gap-2 transition-colors"
+                    title="Download high-resolution PNG"
+                  >
+                    {isDownloadingPNG ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : downloadSuccess ? (
+                      <Check className="w-4 h-4" />
+                    ) : (
+                      <Download className="w-4 h-4" />
+                    )}
+                    <span>{downloadSuccess ? 'Downloaded!' : 'Download PNG'}</span>
+                  </button>
                 </div>
 
                 <button 
@@ -1182,6 +1398,263 @@ const Infographic: React.FC<InfographicProps> = ({ image, onEdit, onUpdateImage,
             </div>
         </div>
       )}
+
+      {/* Share Dialog Modal */}
+      <AnimatePresence>
+        {isShareModalOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsShareModalOpen(false)}
+              className="fixed inset-0 z-[150] bg-slate-950/60 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg z-[151] p-4"
+            >
+              <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden">
+                {/* Header */}
+                <div className="p-6 sm:p-7 border-b border-slate-100 dark:border-white/5 flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center font-bold">
+                      <Share2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                        Share Infographic
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Anyone with this unique link can view this interactive creation.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsShareModalOpen(false)}
+                    className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 sm:p-7 space-y-6">
+                  {/* Infographic Preview Card */}
+                  <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-white/5">
+                    <img 
+                      src={image.data} 
+                      alt={image.prompt} 
+                      className="w-16 h-16 rounded-xl object-cover border border-slate-200 dark:border-white/10 shadow-sm flex-shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white line-clamp-1">
+                        {image.prompt}
+                      </h4>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                        <span className="px-2 py-0.5 rounded-md bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 text-[10px] font-medium">
+                          {image.level || 'High School'}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-medium">
+                          {image.style || 'Default'}
+                        </span>
+                        {image.artForm && image.artForm !== 'None' && (
+                          <span className="px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] font-medium">
+                            {image.artForm}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Unique Share Link Input & Copy Button */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                      Unique Shareable Link
+                    </label>
+                    <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-white/10 focus-within:ring-2 focus-within:ring-cyan-500/50">
+                      <div className="pl-3 text-slate-400">
+                        <LinkIcon className="w-4 h-4" />
+                      </div>
+                      <input
+                        type="text"
+                        readOnly
+                        value={shareUrl || (isGeneratingLink ? 'Generating unique link...' : `${window.location.origin}${window.location.pathname}?v=${image.id}`)}
+                        onClick={(e) => (e.target as HTMLInputElement).select()}
+                        className="w-full bg-transparent border-0 text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-none select-all"
+                      />
+                      <button
+                        onClick={handleCopyLink}
+                        disabled={isGeneratingLink}
+                        className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all flex-shrink-0 shadow-sm ${
+                          copied
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-600/20'
+                        }`}
+                      >
+                        {isGeneratingLink ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : copied ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Copy Link</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between px-1 text-[11px] text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <Globe className="w-3.5 h-3.5 text-cyan-500" />
+                        Publicly accessible link
+                      </span>
+                      {shareUrl && (
+                        <a
+                          href={shareUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1 font-medium"
+                        >
+                          <span>Open in new tab</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* QR Code Section Toggle */}
+                  <div className="border-t border-slate-100 dark:border-white/5 pt-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <QrCode className="w-4 h-4 text-slate-400" />
+                        <span>Mobile QR Code</span>
+                      </span>
+                      <button
+                        onClick={() => setShowQRCode(!showQRCode)}
+                        className="text-xs font-bold text-cyan-600 dark:text-cyan-400 hover:underline"
+                      >
+                        {showQRCode ? 'Hide' : 'Show QR'}
+                      </button>
+                    </div>
+
+                    {showQRCode && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-3 flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-white/5"
+                      >
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                            shareUrl || `${window.location.origin}${window.location.pathname}?v=${image.id}`
+                          )}`}
+                          alt="QR Code"
+                          className="w-36 h-36 rounded-xl bg-white p-2 shadow-md"
+                        />
+                        <p className="text-[11px] text-slate-500 mt-2 text-center">
+                          Scan with a smartphone camera to open directly
+                        </p>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  {/* Social Sharing */}
+                  <div className="border-t border-slate-100 dark:border-white/5 pt-4 space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                      Share directly to
+                    </label>
+                    <div className="grid grid-cols-5 gap-2">
+                      <button
+                        onClick={() => handleSocialShare('twitter')}
+                        className="flex flex-col items-center gap-1.5 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 hover:bg-[#1DA1F2]/10 border border-slate-200/60 dark:border-white/5 hover:border-[#1DA1F2]/30 text-slate-600 dark:text-slate-300 hover:text-[#1DA1F2] transition-colors"
+                        title="Share on X / Twitter"
+                      >
+                        <Twitter className="w-5 h-5" />
+                        <span className="text-[10px] font-medium">X</span>
+                      </button>
+                      <button
+                        onClick={() => handleSocialShare('linkedin')}
+                        className="flex flex-col items-center gap-1.5 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 hover:bg-[#0077b5]/10 border border-slate-200/60 dark:border-white/5 hover:border-[#0077b5]/30 text-slate-600 dark:text-slate-300 hover:text-[#0077b5] transition-colors"
+                        title="Share on LinkedIn"
+                      >
+                        <Linkedin className="w-5 h-5" />
+                        <span className="text-[10px] font-medium">LinkedIn</span>
+                      </button>
+                      <button
+                        onClick={() => handleSocialShare('facebook')}
+                        className="flex flex-col items-center gap-1.5 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 hover:bg-[#4267B2]/10 border border-slate-200/60 dark:border-white/5 hover:border-[#4267B2]/30 text-slate-600 dark:text-slate-300 hover:text-[#4267B2] transition-colors"
+                        title="Share on Facebook"
+                      >
+                        <Facebook className="w-5 h-5" />
+                        <span className="text-[10px] font-medium">Facebook</span>
+                      </button>
+                      <button
+                        onClick={() => handleSocialShare('whatsapp')}
+                        className="flex flex-col items-center gap-1.5 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 hover:bg-[#25D366]/10 border border-slate-200/60 dark:border-white/5 hover:border-[#25D366]/30 text-slate-600 dark:text-slate-300 hover:text-[#25D366] transition-colors"
+                        title="Share on WhatsApp"
+                      >
+                        <Send className="w-5 h-5" />
+                        <span className="text-[10px] font-medium">WhatsApp</span>
+                      </button>
+                      <button
+                        onClick={() => handleSocialShare('email')}
+                        className="flex flex-col items-center gap-1.5 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200/60 dark:border-white/5 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
+                        title="Share via Email"
+                      >
+                        <Mail className="w-5 h-5" />
+                        <span className="text-[10px] font-medium">Email</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="p-4 sm:p-6 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-white/5 flex items-center justify-between">
+                  <button
+                    onClick={handleNativeShare}
+                    className="text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400 flex items-center gap-1.5 transition-colors"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>More share options</span>
+                  </button>
+                  <button
+                    onClick={() => setIsShareModalOpen(false)}
+                    className="px-5 py-2 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 text-xs font-bold transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Floating Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 30, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-2.5 px-5 py-3 rounded-2xl bg-slate-900/95 dark:bg-slate-100/95 text-white dark:text-slate-900 shadow-2xl backdrop-blur-md border border-white/10 dark:border-slate-800"
+          >
+            <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center flex-shrink-0">
+              <Check className="w-3.5 h-3.5" />
+            </div>
+            <span className="text-xs font-bold tracking-wide">
+              {toastMessage}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

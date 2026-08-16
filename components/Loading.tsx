@@ -2,217 +2,414 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import React, { useEffect, useState } from 'react';
-import { Loader2, BrainCircuit, BookOpen, Atom, ScrollText, Database, Dna, Microscope, Globe, Compass, Cpu, Network, Sparkles, CheckCircle2 } from 'lucide-react';
+import React, { useEffect, useState, useMemo } from 'react';
+import { 
+  Loader2, 
+  BrainCircuit, 
+  BookOpen, 
+  Atom, 
+  ScrollText, 
+  Database, 
+  Dna, 
+  Microscope, 
+  Globe, 
+  Compass, 
+  Cpu, 
+  Network, 
+  Sparkles, 
+  CheckCircle2, 
+  Search, 
+  GraduationCap, 
+  Palette, 
+  Layers, 
+  Clock, 
+  Activity, 
+  Check, 
+  ArrowRight,
+  ShieldCheck,
+  Zap
+} from 'lucide-react';
 
 interface LoadingProps {
   status: string;
   step: number;
   facts?: string[];
+  topic?: string;
+  level?: string;
+  style?: string;
 }
 
-const Loading: React.FC<LoadingProps> = ({ status, step, facts = [] }) => {
+interface ResearchMilestone {
+  id: string;
+  stepNum: number;
+  title: string;
+  category: string;
+  icon: React.ElementType;
+  description: string;
+  telemetryLogs: string[];
+}
+
+const RESEARCH_MILESTONES: ResearchMilestone[] = [
+  {
+    id: 'grounding',
+    stepNum: 1,
+    title: 'Search Grounding & Knowledge Retrieval',
+    category: 'Source Discovery',
+    icon: Search,
+    description: 'Querying authoritative encyclopedic sources & validating real-time scientific data.',
+    telemetryLogs: [
+      'Querying Google Search grounding indexes...',
+      'Validating source authenticity & scholarly references...',
+      'Aggregating factual consensus across knowledge domains...',
+      'Filtering semantic noise & prioritizing verified insights...'
+    ]
+  },
+  {
+    id: 'scaffolding',
+    stepNum: 1,
+    title: 'Pedagogical Scaffolding & Fact Extraction',
+    category: 'Educational Curation',
+    icon: GraduationCap,
+    description: 'Calibrating comprehension depth, structured explanations, and verified key takeaways.',
+    telemetryLogs: [
+      'Structuring pedagogical explanation hierarchy...',
+      'Extracting core scientific principles & key metrics...',
+      'Harmonizing tone for intended audience comprehension...',
+      'Synthesizing 5 verified educational takeaway pillars...'
+    ]
+  },
+  {
+    id: 'composition',
+    stepNum: 2,
+    title: 'Visual Composition & Prompt Engineering',
+    category: 'Creative Blueprint',
+    icon: Palette,
+    description: 'Architecting visual spatial layout, harmonious color palette, and aesthetic style cues.',
+    telemetryLogs: [
+      'Constructing spatial quadrant visual layout...',
+      'Mapping aesthetic style tokens & color palette...',
+      'Optimizing composition contrast & visual focal points...',
+      'Finalizing high-precision generative prompt instructions...'
+    ]
+  },
+  {
+    id: 'rendering',
+    stepNum: 2,
+    title: 'High-Definition Neural Canvas Rendering',
+    category: 'Generative Synthesis',
+    icon: Atom,
+    description: 'Rendering high-resolution infographic canvas, typography layouts, and visual metaphors.',
+    telemetryLogs: [
+      'Executing neural diffusion rendering pipeline...',
+      'Generating high-resolution diagrammatic elements...',
+      'Refining lighting, textures, and typography balance...',
+      'Validating graphical clarity & visual cohesion...'
+    ]
+  },
+  {
+    id: 'hotspots',
+    stepNum: 3,
+    title: 'Interactive Hotspot & Citation Synthesis',
+    category: 'Spatial Mapping',
+    icon: Network,
+    description: 'Pinpointing spatial coordinates (X/Y), crafting 2-paragraph deep-dives, and linking citations.',
+    telemetryLogs: [
+      'Analyzing generated canvas for key anatomical landmarks...',
+      'Pinpointing high-precision spatial X/Y coordinates...',
+      'Authoring comprehensive multi-paragraph explanations...',
+      'Binding interactive citation links & finishing synthesis...'
+    ]
+  }
+];
+
+const Loading: React.FC<LoadingProps> = ({ 
+  status, 
+  step, 
+  facts = [], 
+  topic = '', 
+  level = 'General', 
+  style = 'Scientific' 
+}) => {
   const [currentFactIndex, setCurrentFactIndex] = useState(0);
-  
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [telemetryIndex, setTelemetryIndex] = useState(0);
+
+  // Timer for elapsed seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Cycle facts every 4 seconds
   useEffect(() => {
     if (facts.length > 0) {
       const interval = setInterval(() => {
         setCurrentFactIndex((prev) => (prev + 1) % facts.length);
-      }, 3500);
+      }, 4000);
       return () => clearInterval(interval);
     }
   }, [facts]);
 
-  // A mix of Icons and Text flying into the center
-  const FlyingItem = ({ delay, position, type, content }: { delay: number, position: number, type: 'icon' | 'text', content: any }) => {
-    const startLeft = position % 2 === 0 ? '-20%' : '120%';
-    const startTop = `${(position * 7) % 100}%`;
-    
-    return (
-      <div 
-        className={`absolute flex items-center justify-center font-bold opacity-0 select-none ${type === 'text' ? 'text-cyan-500 dark:text-cyan-400 text-[10px] md:text-xs tracking-[0.2em] bg-white/50 dark:bg-slate-900/50 border border-cyan-500/20 px-2 py-0.5 md:px-3 md:py-1 rounded shadow-[0_0_15px_rgba(6,182,212,0.2)] backdrop-blur-md' : 'text-amber-500 dark:text-amber-400'}`}
-        style={{
-          animation: `implode 3s infinite ease-in ${delay}s`,
-          top: startTop,
-          left: startLeft,
-          zIndex: 10,
-        }}
-      >
-        {type === 'icon' ? React.createElement(content, { className: "w-5 h-5 md:w-6 md:h-6 filter drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" }) : content}
-      </div>
-    );
-  };
+  // Cycle telemetry logs every 2 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTelemetryIndex((prev) => (prev + 1) % 4);
+    }, 2200);
+    return () => clearInterval(interval);
+  }, []);
 
-  const aiSteps = [
-    { num: 1, label: "CONTEXT", icon: Globe },
-    { num: 2, label: "SYNTHESIS", icon: Cpu },
-    { num: 3, label: "SPATIAL", icon: Network }
-  ];
+  // Calculate active milestone index (0 to 4)
+  // Step 1: milestones 0 & 1 (Knowledge + Fact extraction)
+  // Step 2: milestones 2 & 3 (Composition + Image rendering)
+  // Step 3: milestone 4 (Hotspots + interactive synthesis)
+  const currentMilestoneIndex = useMemo(() => {
+    if (step <= 1) {
+      return elapsedSeconds > 4 ? 1 : 0;
+    } else if (step === 2) {
+      return elapsedSeconds > 12 ? 3 : 2;
+    } else {
+      return 4;
+    }
+  }, [step, elapsedSeconds]);
 
-  const displayStep = Math.max(1, Math.min(step, 3));
+  // Progress percentage calculation
+  const progressPercent = useMemo(() => {
+    if (step <= 1) {
+      return Math.min(38, 10 + elapsedSeconds * 4);
+    } else if (step === 2) {
+      return Math.min(78, 40 + (elapsedSeconds - 5) * 3);
+    } else {
+      return Math.min(95, 80 + (elapsedSeconds - 12) * 2);
+    }
+  }, [step, elapsedSeconds]);
+
+  const activeMilestone = RESEARCH_MILESTONES[currentMilestoneIndex] || RESEARCH_MILESTONES[0];
+  const activeLog = activeMilestone.telemetryLogs[telemetryIndex % activeMilestone.telemetryLogs.length];
 
   return (
-    <div className="relative flex flex-col items-center justify-center w-full max-w-4xl mx-auto mt-8 min-h-[400px] md:min-h-[550px] overflow-hidden rounded-3xl bg-slate-50/40 dark:bg-slate-900/40 border border-slate-200/50 dark:border-white/5 shadow-[0_0_50px_rgba(6,182,212,0.05)] backdrop-blur-3xl transition-colors">
+    <div className="relative w-full max-w-5xl mx-auto mt-6 md:mt-8 p-4 md:p-8 rounded-3xl bg-white/95 dark:bg-slate-900/95 border border-slate-200/80 dark:border-slate-800 shadow-2xl backdrop-blur-2xl transition-all">
       
-      <style>{`
-        @keyframes implode {
-          0% { transform: scale(1.5) rotate(0deg); opacity: 0; filter: blur(4px); }
-          20% { opacity: 1; filter: blur(0px); }
-          80% { opacity: 1; filter: blur(0px); }
-          100% { transform: scale(0) rotate(360deg); opacity: 0; top: 50%; left: 50%; filter: blur(4px); }
-        }
-        @keyframes spin-slow {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        @keyframes spin-reverse {
-          0% { transform: rotate(360deg); }
-          100% { transform: rotate(0deg); }
-        }
-        @keyframes pulse-core {
-          0%, 100% { box-shadow: 0 0 40px 0 rgba(6, 182, 212, 0.4), inset 0 0 20px 0 rgba(6, 182, 212, 0.2); transform: scale(1); }
-          50% { box-shadow: 0 0 80px 20px rgba(6, 182, 212, 0.2), inset 0 0 40px 10px rgba(6, 182, 212, 0.4); transform: scale(1.02); }
-        }
-        @keyframes data-flow {
-          0% { stroke-dashoffset: 200; }
-          100% { stroke-dashoffset: 0; }
-        }
-      `}</style>
+      {/* Background Subtle Gradient Glow */}
+      <div className="absolute top-0 right-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none -z-10 animate-pulse"></div>
+      <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none -z-10 animate-pulse"></div>
 
-      {/* THE REACTOR CORE */}
-      <div className="relative z-20 mb-8 md:mb-12 scale-[0.7] md:scale-[1.15] mt-6 md:mt-12 flex items-center justify-center">
-        
-        {/* Background Network SVG */}
-        <svg className="absolute w-[400px] h-[400px] pointer-events-none opacity-20 dark:opacity-30" viewBox="0 0 400 400">
-            <circle cx="200" cy="200" r="150" fill="none" stroke="currentColor" className="text-cyan-500" strokeWidth="0.5" strokeDasharray="4 4" />
-            <circle cx="200" cy="200" r="100" fill="none" stroke="currentColor" className="text-indigo-500" strokeWidth="1" strokeDasharray="2 6" />
-            {[0, 60, 120, 180, 240, 300].map(deg => {
-                const rad = (deg * Math.PI) / 180;
-                return (
-                    <line 
-                        key={deg}
-                        x1={200 + Math.cos(rad) * 100} 
-                        y1={200 + Math.sin(rad) * 100} 
-                        x2={200 + Math.cos(rad) * 150} 
-                        y2={200 + Math.sin(rad) * 150} 
-                        stroke="currentColor" 
-                        className="text-cyan-500" 
-                        strokeWidth="1"
-                        strokeDasharray="100"
-                        strokeDashoffset="100"
-                        style={{ animation: `data-flow 2s infinite linear ${deg / 60}s` }}
-                    />
-                )
-            })}
-        </svg>
-
-        {/* Outer Rings */}
-        <div className="absolute inset-0 w-80 h-80 -translate-x-1/2 -translate-y-1/2 left-1/2 top-1/2 border-[0.5px] border-cyan-500/10 dark:border-cyan-500/20 rounded-full animate-[spin-slow_30s_linear_infinite]">
-            <div className="absolute top-0 left-1/2 w-2 h-2 bg-cyan-400 rounded-full -translate-x-1/2 -translate-y-1/2 shadow-[0_0_10px_#22d3ee]"></div>
-            <div className="absolute bottom-0 left-1/2 w-3 h-3 bg-indigo-500 rounded-full -translate-x-1/2 translate-y-1/2 shadow-[0_0_10px_#6366f1]"></div>
-        </div>
-        <div className="absolute inset-0 w-60 h-60 -translate-x-1/2 -translate-y-1/2 left-1/2 top-1/2 border border-dashed border-cyan-500/20 dark:border-cyan-400/30 rounded-full animate-[spin-reverse_20s_linear_infinite]"></div>
-        <div className="absolute inset-0 w-44 h-44 -translate-x-1/2 -translate-y-1/2 left-1/2 top-1/2 border-2 border-indigo-500/20 dark:border-indigo-400/20 rounded-full animate-[spin-slow_10s_linear_infinite]"></div>
-        <div className="absolute inset-0 w-32 h-32 -translate-x-1/2 -translate-y-1/2 left-1/2 top-1/2 border-[3px] border-dotted border-cyan-300/40 dark:border-cyan-300/30 rounded-full animate-[spin-reverse_15s_linear_infinite]"></div>
-        
-        {/* Glowing Center */}
-        <div className="relative bg-white/30 dark:bg-slate-900/50 p-2 rounded-full backdrop-blur-sm animate-[pulse-core_3s_infinite_ease-in-out]">
-           <div className="bg-white dark:bg-slate-950 p-4 rounded-full flex items-center justify-center w-28 h-28 relative overflow-hidden ring-1 ring-cyan-500/30 shadow-[inset_0_0_20px_rgba(6,182,212,0.5)]">
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(6,182,212,0.4)_0%,transparent_70%)] opacity-50 dark:opacity-70 animate-pulse"></div>
-              
-              <div className="relative w-14 h-14 flex items-center justify-center z-10 text-cyan-600 dark:text-cyan-400">
-                  <BrainCircuit className="w-14 h-14 animate-[pulse-core_2s_infinite]" />
-              </div>
-              
-              {/* Inner crosshairs */}
-              <div className="absolute top-0 left-1/2 w-[1px] h-full bg-cyan-400/30 dark:bg-cyan-500/50 animate-[spin-slow_4s_linear_infinite]"></div>
-              <div className="absolute top-1/2 left-0 h-[1px] w-full bg-cyan-400/30 dark:bg-cyan-500/50 animate-[spin-slow_4s_linear_infinite]"></div>
-           </div>
+      {/* Header Bar: Status, Live Timer, Overall Progress */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-slate-200/80 dark:border-slate-800">
+        <div className="flex items-center gap-3">
+          <div className="relative flex items-center justify-center w-11 h-11 rounded-2xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 shadow-sm">
+            <BrainCircuit className="w-6 h-6 animate-pulse" />
+            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
+            </span>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base md:text-lg font-bold text-slate-900 dark:text-white font-display">
+                Real-Time Research & Synthesis Engine
+              </h2>
+              <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 text-xs font-bold border border-cyan-500/20">
+                LIVE
+              </span>
+            </div>
+            <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
+              <span className="font-semibold text-slate-700 dark:text-slate-300">Phase:</span> {status}
+            </p>
+          </div>
         </div>
 
-        {/* Flying Particles IN to the core */}
-        <div className="absolute top-1/2 left-1/2 w-[400px] md:w-[600px] h-[400px] md:h-[600px] -translate-x-1/2 -translate-y-1/2 pointer-events-none">
-           <FlyingItem content={BookOpen} type="icon" delay={0} position={1} />
-           <FlyingItem content="HISTORY" type="text" delay={0.3} position={2} />
-           <FlyingItem content={Microscope} type="icon" delay={0.6} position={3} />
-           <FlyingItem content="SCIENCE" type="text" delay={0.9} position={4} />
-           <FlyingItem content={Dna} type="icon" delay={1.2} position={5} />
-           <FlyingItem content="FACTS" type="text" delay={1.5} position={6} />
-           <FlyingItem content={Globe} type="icon" delay={1.8} position={7} />
-           <FlyingItem content="DATA" type="text" delay={2.1} position={8} />
-           <FlyingItem content={Compass} type="icon" delay={2.4} position={9} />
-           <FlyingItem content={ScrollText} type="icon" delay={2.7} position={10} />
+        {/* Right metrics: Time Elapsed & Completion Progress */}
+        <div className="flex items-center gap-4 sm:self-center">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs md:text-sm font-semibold text-slate-700 dark:text-slate-300">
+            <Clock className="w-4 h-4 text-cyan-500" />
+            <span>{Math.floor(elapsedSeconds / 60)}m {elapsedSeconds % 60 < 10 ? `0${elapsedSeconds % 60}` : elapsedSeconds % 60}s</span>
+          </div>
+
+          <div className="text-right">
+            <div className="text-sm md:text-base font-bold font-mono text-cyan-600 dark:text-cyan-400">
+              {Math.round(progressPercent)}%
+            </div>
+            <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+              Completion
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Dynamic Status Display */}
-      <div className="relative z-30 w-full max-w-2xl bg-white/70 dark:bg-slate-900/60 backdrop-blur-2xl rounded-[2rem] p-6 md:p-8 shadow-2xl border border-white/40 dark:border-white/10 flex flex-col items-center transition-all duration-700 min-h-[160px] md:min-h-[180px] ring-1 ring-black/5 dark:ring-white/5">
+      {/* Main Continuous Progress Bar */}
+      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5 my-5 overflow-hidden p-0.5 border border-slate-200/60 dark:border-white/5">
+        <div 
+          className="bg-gradient-to-r from-cyan-500 via-indigo-500 to-purple-500 h-full rounded-full transition-all duration-500 ease-out shadow-[0_0_12px_rgba(6,182,212,0.6)]"
+          style={{ width: `${progressPercent}%` }}
+        ></div>
+      </div>
+
+      {/* Grid: Left Specific Milestones Tracker, Right Live Telemetry & Fact Discoveries */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 md:gap-6 mt-2">
         
-        {/* Status indicator */}
-        <div className="flex items-center gap-4 mb-6">
-            <div className="relative w-8 h-8 flex items-center justify-center bg-cyan-100 dark:bg-cyan-900/40 rounded-full border border-cyan-200 dark:border-cyan-500/30">
-                {step === 1 && <Globe className="w-4 h-4 text-cyan-600 dark:text-cyan-400 animate-spin" />}
-                {step === 2 && <Cpu className="w-4 h-4 text-cyan-600 dark:text-cyan-400 animate-pulse" />}
-                {step >= 3 && <Network className="w-4 h-4 text-cyan-600 dark:text-cyan-400 animate-pulse" />}
-                {/* Ping effect */}
-                <span className="absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-20 animate-ping"></span>
-            </div>
-            <h3 className="text-slate-800 dark:text-white font-bold text-sm md:text-base tracking-[0.2em] uppercase font-display border-b border-cyan-200 dark:border-cyan-900/50 pb-1">
-              {status}
-            </h3>
+        {/* Left Column: 5 Specific Research Milestones List (7 cols) */}
+        <div className="lg:col-span-7 space-y-2.5">
+          <div className="flex items-center justify-between px-1 mb-1">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5 text-cyan-500" /> Specific Research Milestones
+            </span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              Step {currentMilestoneIndex + 1} of {RESEARCH_MILESTONES.length}
+            </span>
+          </div>
+
+          {RESEARCH_MILESTONES.map((milestone, idx) => {
+            const isCompleted = idx < currentMilestoneIndex;
+            const isCurrent = idx === currentMilestoneIndex;
+            const isPending = idx > currentMilestoneIndex;
+            const IconComponent = milestone.icon;
+
+            return (
+              <div 
+                key={milestone.id}
+                className={`p-3.5 rounded-2xl border transition-all duration-300 flex items-start gap-3.5 ${
+                  isCurrent 
+                    ? 'bg-cyan-50/80 dark:bg-cyan-950/30 border-cyan-500/50 shadow-md ring-1 ring-cyan-500/20 scale-[1.01]' 
+                    : isCompleted 
+                    ? 'bg-slate-50/80 dark:bg-slate-800/40 border-emerald-500/20 dark:border-emerald-500/20' 
+                    : 'bg-white/40 dark:bg-slate-900/30 border-slate-200/50 dark:border-slate-800/50 opacity-60'
+                }`}
+              >
+                {/* Milestone Icon / Status Checkbox */}
+                <div className={`mt-0.5 flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs transition-all ${
+                  isCompleted 
+                    ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/30' 
+                    : isCurrent 
+                    ? 'bg-cyan-500 text-white shadow-md shadow-cyan-500/40 animate-pulse' 
+                    : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
+                }`}>
+                  {isCompleted ? (
+                    <Check className="w-4 h-4 stroke-[3]" />
+                  ) : isCurrent ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <span>{idx + 1}</span>
+                  )}
+                </div>
+
+                {/* Milestone Details */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className={`text-sm font-bold truncate ${
+                      isCurrent 
+                        ? 'text-cyan-900 dark:text-cyan-200' 
+                        : isCompleted 
+                        ? 'text-slate-800 dark:text-slate-200' 
+                        : 'text-slate-500 dark:text-slate-400'
+                    }`}>
+                      {milestone.title}
+                    </h4>
+
+                    {/* Badge */}
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0 ${
+                      isCompleted 
+                        ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/50' 
+                        : isCurrent 
+                        ? 'bg-cyan-100 dark:bg-cyan-900/60 text-cyan-700 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-700/50 animate-pulse' 
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700'
+                    }`}>
+                      {isCompleted ? 'Completed' : isCurrent ? 'Active' : 'Queued'}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                    {milestone.description}
+                  </p>
+
+                  {/* Active Sub-Telemetry Log */}
+                  {isCurrent && (
+                    <div className="mt-2.5 pt-2 border-t border-cyan-500/20 flex items-center gap-2 text-xs font-mono text-cyan-800 dark:text-cyan-300 bg-cyan-500/5 p-1.5 rounded-lg">
+                      <Zap className="w-3.5 h-3.5 text-cyan-500 shrink-0 animate-bounce" />
+                      <span className="truncate">{activeLog}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        {/* Fact Carousel */}
-        <div className="flex-1 flex items-center justify-center px-4 w-full text-center relative h-[80px]">
-            {facts.length > 0 ? (
-            <div key={currentFactIndex} className="absolute w-full animate-in slide-in-from-bottom-4 fade-in slide-out-to-top-4 fade-out duration-700 fill-mode-both">
-                <p className="text-base md:text-xl text-slate-800 dark:text-slate-200 font-serif-display leading-relaxed italic">
-                "{facts[currentFactIndex]}"
-                </p>
-            </div>
-            ) : (
-            <div className="absolute w-full flex flex-col items-center gap-3 text-slate-500 dark:text-slate-400 italic font-light text-sm md:text-base animate-pulse">
-                <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-cyan-500" />
-                    <span>Establishing quantum link...</span>
+        {/* Right Column: Live Telemetry Terminal & Knowledge Stream (5 cols) */}
+        <div className="lg:col-span-5 flex flex-col gap-4">
+          
+          {/* Live Knowledge Discoveries Carousel */}
+          <div className="bg-gradient-to-br from-slate-50 to-cyan-50/40 dark:from-slate-950 dark:to-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 md:p-5 shadow-sm flex flex-col justify-between min-h-[220px]">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Live Knowledge Discoveries
+                </span>
+                {facts.length > 0 && (
+                  <span className="text-[11px] text-cyan-600 dark:text-cyan-400 font-semibold">
+                    {currentFactIndex + 1}/{facts.length}
+                  </span>
+                )}
+              </div>
+
+              {facts.length > 0 ? (
+                <div key={currentFactIndex} className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                  <div className="p-3 bg-white/80 dark:bg-slate-900/80 rounded-xl border border-cyan-500/20 shadow-sm">
+                    <p className="text-sm md:text-base font-serif italic text-slate-800 dark:text-slate-200 leading-relaxed">
+                      "{facts[currentFactIndex]}"
+                    </p>
+                  </div>
                 </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center text-center py-6 text-slate-400 dark:text-slate-500 space-y-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-cyan-500" />
+                  <p className="text-xs italic">
+                    Retrieving validated encyclopedic facts for your infographic...
+                  </p>
+                </div>
+              )}
             </div>
+
+            {/* Quick Fact Indicator Dots */}
+            {facts.length > 1 && (
+              <div className="flex items-center justify-center gap-1.5 mt-3 pt-2 border-t border-slate-200/60 dark:border-white/5">
+                {facts.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setCurrentFactIndex(i)}
+                    className={`h-1.5 rounded-full transition-all ${
+                      i === currentFactIndex 
+                        ? 'w-6 bg-cyan-500' 
+                        : 'w-2 bg-slate-300 dark:bg-slate-700'
+                    }`}
+                  />
+                ))}
+              </div>
             )}
-        </div>
-        
-        {/* AI Pipeline Segmented Progress */}
-        <div className="w-full mt-6 relative">
-            <div className="absolute top-1/2 left-0 w-full h-[1px] bg-slate-200 dark:bg-slate-700 -translate-y-1/2 z-0">
-                {/* Active connecting line */}
-                <div 
-                    className="h-full bg-gradient-to-r from-cyan-500 to-indigo-500 transition-all duration-1000 ease-in-out shadow-[0_0_10px_#06b6d4]"
-                    style={{ width: `${((displayStep - 1) / 2) * 100}%` }}
-                ></div>
+          </div>
+
+          {/* Research Context & Parameter Verification Card */}
+          <div className="bg-slate-50/80 dark:bg-slate-950/60 rounded-2xl border border-slate-200 dark:border-slate-800 p-4">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mb-2.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> Synthesis Parameters
+            </span>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200/60 dark:border-white/5">
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Current Task</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">{status}</span>
+              </div>
+              <div className="bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200/60 dark:border-white/5">
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Active Grounding</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Verified Sources
+                </span>
+              </div>
             </div>
-            
-            <div className="relative z-10 flex justify-between w-full">
-                {aiSteps.map((s, idx) => {
-                    const isActive = s.num === displayStep;
-                    const isCompleted = Math.max(1, step) > s.num;
-                    
-                    return (
-                        <div key={s.num} className="flex flex-col items-center gap-2 group">
-                            <div 
-                                className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-all duration-700 border-2 
-                                ${isActive ? 'bg-cyan-500 border-cyan-400 text-white shadow-[0_0_20px_rgba(6,182,212,0.6)] scale-110' : 
-                                  isCompleted ? 'bg-slate-800 dark:bg-slate-800 border-cyan-600 text-cyan-400' : 
-                                  'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-600'}`}
-                            >
-                                {isCompleted ? <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 text-cyan-400" /> : <s.icon className={`w-4 h-4 md:w-5 md:h-5 ${isActive ? 'animate-[pulse-core_2s_infinite]' : ''}`} />}
-                            </div>
-                            <span className={`text-[9px] md:text-[10px] font-bold tracking-[0.2em] transition-colors duration-300 ${isActive ? 'text-cyan-600 dark:text-cyan-400' : isCompleted ? 'text-slate-600 dark:text-slate-400' : 'text-slate-400/50 dark:text-slate-600'}`}>
-                                {s.label}
-                            </span>
-                        </div>
-                    )
-                })}
-            </div>
+          </div>
+
         </div>
+
       </div>
 
     </div>

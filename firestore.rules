@@ -39,8 +39,8 @@ service cloud.firestore {
 
     // Infographics
     match /infographics/{infographicId} {
-      allow get: if (resource.data.isPublic == true) || isOwner(resource.data.userId) || isAdmin();
-      allow list: if (resource.data.isPublic == true) || isOwner(resource.data.userId) || isAdmin();
+      allow get: if (resource.data.isPublic == true) || (isSignedIn() && isOwner(resource.data.userId)) || isAdmin();
+      allow list: if (resource.data.isPublic == true) || (isSignedIn() && isOwner(resource.data.userId)) || isAdmin();
       
       function isValidInfographic(data) {
         return data.userId is string &&
@@ -49,9 +49,9 @@ service cloud.firestore {
                data.createdAt is timestamp;
       }
 
-      allow create: if isOwner(request.resource.data.userId) && isValidInfographic(request.resource.data);
-      allow update: if (isOwner(resource.data.userId) || isAdmin()) && isValidInfographic(request.resource.data);
-      allow delete: if isOwner(resource.data.userId) || isAdmin();
+      allow create: if (request.resource.data.isPublic == true || (isSignedIn() && isOwner(request.resource.data.userId))) && isValidInfographic(request.resource.data);
+      allow update: if ((isSignedIn() && isOwner(resource.data.userId)) || resource.data.isPublic == true || isAdmin()) && isValidInfographic(request.resource.data);
+      allow delete: if (isSignedIn() && isOwner(resource.data.userId)) || isAdmin();
     }
   }
 }
